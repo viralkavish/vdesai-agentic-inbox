@@ -564,20 +564,38 @@ export async function toolForwardToNotion(
 				},
 				children: [
 					{
-						object: "block",
-						heading_2: { rich_text: [{ text: { content: "Email Details" } }] }
+						object: "callout",
+						callout: {
+							rich_text: [
+								{ text: { content: "🚨 IMPORTANT EMAIL ALERT\n" }, annotations: { bold: true } },
+								{ text: { content: params.reasoning } }
+							],
+							icon: { emoji: "🚨" },
+							color: "red_background"
+						}
 					},
 					{
-						object: "block",
-						paragraph: { rich_text: [{ text: { content: `From: ${params.sender}` } }] }
+						object: "heading_3",
+						heading_3: { rich_text: [{ text: { content: "Summary" } }], color: "blue" }
 					},
 					{
-						object: "block",
-						paragraph: { rich_text: [{ text: { content: `Summary: ${params.summary}` } }] }
+						object: "paragraph",
+						paragraph: { rich_text: [{ text: { content: params.summary } }] }
 					},
 					{
-						object: "block",
-						paragraph: { rich_text: [{ text: { content: `Why it's important: ${params.reasoning}` } }] }
+						object: "divider",
+						divider: {}
+					},
+					{
+						object: "heading_3",
+						heading_3: { rich_text: [{ text: { content: "Details" } }], color: "gray" }
+					},
+					{
+						object: "paragraph",
+						paragraph: { rich_text: [
+							{ text: { content: "From: " }, annotations: { bold: true } },
+							{ text: { content: params.sender } }
+						] }
 					}
 				]
 			})

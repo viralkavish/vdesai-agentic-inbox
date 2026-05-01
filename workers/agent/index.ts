@@ -51,7 +51,7 @@ function defineTool(def: {
  * Default system prompt used when no custom prompt is configured for a mailbox.
  * Users can override this on a per-mailbox basis via the Settings UI.
  */
-const DEFAULT_SYSTEM_PROMPT = `You are an email assistant that helps manage this inbox. You read emails, draft replies, and help organize conversations.
+const DEFAULT_SYSTEM_PROMPT = `You are Viral's strict email filter and assistant. You read emails, draft replies, and help organize conversations.
 
 ## Writing Style
 Write like a real person. Short, direct, flowing prose. Get to the point. Plain text only - no HTML tags in your replies.
@@ -72,8 +72,15 @@ Write like a real person. Short, direct, flowing prose. Get to the point. Plain 
 - Your reply should only contain NEW information or directly respond to what the person just said. Move the conversation forward, don't rehash it.
 
 ## Importance Evaluation & Notion Forwarding
-- Evaluate all incoming emails for importance. An email is important if it requires urgent attention, contains critical updates, or requires action from the operator. Newsletters, promotional emails, or standard notifications are NOT important.
-- If the email is important, you MUST use the \`forward_to_notion\` tool to send a summary to the operator's Notion dashboard. Do this BEFORE or alongside drafting a reply.
+Classify the incoming email into exactly ONE category internally:
+- IMPORTANT: Requires my attention, action, reply, or contains critical/personal/business updates (invoices, bills, appointments, legal, urgent matters, mentions "Viral", clients, or family).
+- MARKETING: Newsletters, promotions, discounts, sales offers, "unsubscribe".
+- SPAM: Junk, scams, unsolicited random emails.
+
+If the email is IMPORTANT, you MUST use the \`forward_to_notion\` tool to notify Viral immediately. 
+When calling the tool:
+- "reasoning" should be one short sentence explaining why it is IMPORTANT.
+- "summary" should be a 2-3 sentence clear summary of the email content and what action (if any) is needed.
 
 ## Who Are You Replying To?
 Use the name the person gives in their email body / signature. That's their name - use it. The "from" address is where you send the reply, but the name in the email is how you greet them.
@@ -369,7 +376,7 @@ export class EmailAgent extends AIChatAgent<any> {
 				const isInjection = await isPromptInjection(env.AI, email.body);
 				if (isInjection) {
 					console.warn("Skipping auto-draft due to detected prompt injection:", emailData.emailId);
-					
+
 					// Log to agent chat so the user knows why it skipped
 					const newMessages = [
 						{
@@ -388,56 +395,56 @@ export class EmailAgent extends AIChatAgent<any> {
 						},
 					];
 					await this.persistMessages([...this.messages, ...newMessages]);
-					
+
 					return;
 				}
-				
+
 				emailBody = stripHtmlToText(email.body);
 			}
 
-		// Load thread for conversation context
-		const threadEmails = (await stub.getEmails({ thread_id: emailData.threadId })) as EmailMetadata[];
-		if (threadEmails.length > 1) {
-			const fullThread = await Promise.all(
-				threadEmails.map(async (e) => {
-					const full = (await stub.getEmail(e.id)) as EmailFull | null;
-					const text = full?.body ? stripHtmlToText(full.body) : "";
-					return { id: e.id, sender: e.sender, recipient: e.recipient, subject: e.subject, date: e.date, folder_id: e.folder_id, body_text: text };
-				}),
-			);
-			fullThread.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-			threadContext = fullThread
-				.map((e) => `[${e.date}] ${e.sender} → ${e.recipient} (${e.folder_id}): ${e.body_text.substring(0, 500)}`)
-				.join("\n\n");
+			// Load thread for conversation context
+			const threadEmails = (await stub.getEmails({ thread_id: emailData.threadId })) as EmailMetadata[];
+			if (threadEmails.length > 1) {
+				const fullThread = await Promise.all(
+					threadEmails.map(async (e) => {
+						const full = (await stub.getEmail(e.id)) as EmailFull | null;
+						const text = full?.body ? stripHtmlToText(full.body) : "";
+						return { id: e.id, sender: e.sender, recipient: e.recipient, subject: e.subject, date: e.date, folder_id: e.folder_id, body_text: text };
+					}),
+				);
+				fullThread.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+				threadContext = fullThread
+					.map((e) => `[${e.date}] ${e.sender} → ${e.recipient} (${e.folder_id}): ${e.body_text.substring(0, 500)}`)
+					.join("\n\n");
 
-			// Scan thread context for prompt injection too -- an attacker
-			// could plant an injection in an earlier email in the thread
-			// that gets included in the agent's prompt.
-			if (threadContext) {
-				const threadInjection = await isPromptInjection(env.AI, threadContext);
-				if (threadInjection) {
-					console.warn("Skipping auto-draft due to prompt injection in thread context:", emailData.threadId);
-					const newMessages = [
-						{
-							id: crypto.randomUUID(),
-							role: "user" as const,
-							content: `[Auto-triggered] New email from ${emailData.sender}: "${emailData.subject}"`,
-							createdAt: new Date(),
-							parts: [{ type: "text" as const, text: `[Auto-triggered] New email from ${emailData.sender}: "${emailData.subject}"` }],
-						},
-						{
-							id: crypto.randomUUID(),
-							role: "assistant" as const,
-							content: "Blocked auto-draft creation: the thread context appears to contain prompt injection or malicious instructions.",
-							createdAt: new Date(),
-							parts: [{ type: "text" as const, text: "Blocked auto-draft creation: the thread context appears to contain prompt injection or malicious instructions." }],
-						},
-					];
-					await this.persistMessages([...this.messages, ...newMessages]);
-					return;
+				// Scan thread context for prompt injection too -- an attacker
+				// could plant an injection in an earlier email in the thread
+				// that gets included in the agent's prompt.
+				if (threadContext) {
+					const threadInjection = await isPromptInjection(env.AI, threadContext);
+					if (threadInjection) {
+						console.warn("Skipping auto-draft due to prompt injection in thread context:", emailData.threadId);
+						const newMessages = [
+							{
+								id: crypto.randomUUID(),
+								role: "user" as const,
+								content: `[Auto-triggered] New email from ${emailData.sender}: "${emailData.subject}"`,
+								createdAt: new Date(),
+								parts: [{ type: "text" as const, text: `[Auto-triggered] New email from ${emailData.sender}: "${emailData.subject}"` }],
+							},
+							{
+								id: crypto.randomUUID(),
+								role: "assistant" as const,
+								content: "Blocked auto-draft creation: the thread context appears to contain prompt injection or malicious instructions.",
+								createdAt: new Date(),
+								parts: [{ type: "text" as const, text: "Blocked auto-draft creation: the thread context appears to contain prompt injection or malicious instructions." }],
+							},
+						];
+						await this.persistMessages([...this.messages, ...newMessages]);
+						return;
+					}
 				}
 			}
-		}
 		} catch (e) {
 			console.warn("Pre-read failed, agent will use tools:", (e as Error).message);
 		}
@@ -514,12 +521,12 @@ Based on the email content and thread context above, draft a reply using draft_r
 							sender: emailData.mailboxId.toLowerCase(),
 							recipient: emailData.sender.toLowerCase(),
 							date: new Date().toISOString(),
-						// verifyDraft may return plain text or HTML depending on its
-						// code path. Only wrap in textToHtml if it's plain text.
-						body: /<[a-z][\s\S]*>/i.test(sanitizedText)
-							? sanitizedText
-							: textToHtml(sanitizedText),
-						in_reply_to: emailData.emailId,
+							// verifyDraft may return plain text or HTML depending on its
+							// code path. Only wrap in textToHtml if it's plain text.
+							body: /<[a-z][\s\S]*>/i.test(sanitizedText)
+								? sanitizedText
+								: textToHtml(sanitizedText),
+							in_reply_to: emailData.emailId,
 							email_references: null,
 							thread_id: emailData.threadId,
 						},
@@ -530,11 +537,33 @@ Based on the email content and thread context above, draft a reply using draft_r
 			}
 
 			// Persist the conversation into the agent's chat history
-			// If it called the tool, we just log a simple success message so the chat isn't cluttered
-			// with conversational slop.
-			const assistantText = draftToolCalled 
-				? `Created draft reply to ${emailData.sender}.`
-				: result.text;
+			const draftToolCalled = result.steps.some((step) =>
+				step.toolCalls.some((tc) => tc.toolName === "draft_reply" || tc.toolName === "draft_email"),
+			);
+
+			let notionToolArgs = null;
+			for (const step of result.steps) {
+				for (const tc of step.toolCalls) {
+					if (tc.toolName === "forward_to_notion") {
+						notionToolArgs = tc.args as any;
+						break;
+					}
+				}
+				if (notionToolArgs) break;
+			}
+
+			let assistantText = "";
+			if (notionToolArgs) {
+				assistantText += `✅ **Important Email Forwarded to Notion**\n- **From**: ${notionToolArgs.sender}\n- **Why**: ${notionToolArgs.reasoning}\n- **Summary**: ${notionToolArgs.summary}\n\n`;
+			}
+			
+			if (draftToolCalled) {
+				assistantText += `Created draft reply to ${emailData.sender}.`;
+			}
+			
+			if (!notionToolArgs && !draftToolCalled) {
+				assistantText = result.text;
+			}
 
 			const newMessages = [
 				{
