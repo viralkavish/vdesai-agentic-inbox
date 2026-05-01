@@ -301,10 +301,11 @@ function createEmailTools(env: Env, mailboxId: string) {
 				subject: z.string().describe("The subject of the email"),
 				sender: z.string().describe("The sender of the email"),
 				summary: z.string().describe("A concise summary of the email content"),
-				reasoning: z.string().describe("A brief explanation of why this email is considered important")
+				reasoning: z.string().describe("A brief explanation of why this email is considered important"),
+				proposed_draft: z.string().describe("The exact text of the reply you plan to draft. The user needs to preview this draft in Telegram.")
 			}),
-			execute: async ({ subject, sender, summary, reasoning }): Promise<unknown> => {
-				return toolForwardToTelegram(env, { subject, sender, summary, reasoning, mailboxId });
+			execute: async ({ subject, sender, summary, reasoning, proposed_draft }): Promise<unknown> => {
+				return toolForwardToTelegram(env, { subject, sender, summary, reasoning, proposed_draft, mailboxId });
 			},
 		}),
 	};

@@ -630,6 +630,7 @@ export async function toolForwardToTelegram(
 		sender: string;
 		summary: string;
 		reasoning: string;
+		proposed_draft?: string;
 		mailboxId: string;
 	},
 ) {
@@ -640,7 +641,11 @@ export async function toolForwardToTelegram(
 		return { error: "TELEGRAM_TOKEN or TELEGRAM_CHAT_ID is not configured." };
 	}
 
-	const draftsUrl = `https://${env.DOMAINS}/mailbox/${params.mailboxId}/emails/drafts`;
+	const inboxUrl = `https://email.vdesai.com/mailbox/${params.mailboxId}/emails/inbox`;
+
+	const draftSection = params.proposed_draft 
+		? `\n*Proposed AI Draft:*\n\`\`\`text\n${params.proposed_draft}\n\`\`\`\n`
+		: "";
 
 	const messageText = `🚨 *URGENT EMAIL ALERT* 🚨
 
@@ -652,8 +657,8 @@ ${params.reasoning}
 
 *Summary:*
 ${params.summary}
-
-👉 [Click here to review & send draft](${draftsUrl})`;
+${draftSection}
+👉 [Click here to review & send draft](${inboxUrl})`;
 
 	try {
 		const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
