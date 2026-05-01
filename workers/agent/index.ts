@@ -537,9 +537,6 @@ Based on the email content and thread context above, draft a reply using draft_r
 			}
 
 			// Persist the conversation into the agent's chat history
-			const draftToolCalled = result.steps.some((step) =>
-				step.toolCalls.some((tc) => tc.toolName === "draft_reply" || tc.toolName === "draft_email"),
-			);
 
 			let notionToolArgs = null;
 			for (const step of result.steps) {
