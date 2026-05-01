@@ -28,6 +28,7 @@ import {
 	toolMarkEmailRead,
 	toolMoveEmail,
 	toolDiscardDraft,
+	toolForwardToNotion,
 } from "../lib/tools";
 import { Folders, FOLDER_TOOL_DESCRIPTION, MOVE_FOLDER_TOOL_DESCRIPTION } from "../../shared/folders";
 import type { Env } from "../types";
@@ -63,12 +64,16 @@ Write like a real person. Short, direct, flowing prose. Get to the point. Plain 
 
 **Agent Behavior Rules (CRITICAL):**
 - NEVER output meta-commentary about what you are doing (e.g. do not say "I am drafting a reply to Alex", "I checked the thread", etc).
-- When a new email arrives, your ONLY job is to call the \`draft_reply\` tool.
-- DO NOT summarize the email. DO NOT explain your actions.
-- Output NOTHING except the tool call. If you must output text, it should ONLY be the literal draft text itself if tools fail.
+- When a new email arrives, your primary job is to evaluate its importance and draft a reply.
+- DO NOT summarize the email in chat. DO NOT explain your actions.
+- Output NOTHING except tool calls. If you must output text, it should ONLY be the literal draft text itself if tools fail.
 - Before drafting ANY reply, carefully read the full thread history.
 - NEVER repeat information that was already shared in a prior message in the thread.
 - Your reply should only contain NEW information or directly respond to what the person just said. Move the conversation forward, don't rehash it.
+
+## Importance Evaluation & Notion Forwarding
+- Evaluate all incoming emails for importance. An email is important if it requires urgent attention, contains critical updates, or requires action from the operator. Newsletters, promotional emails, or standard notifications are NOT important.
+- If the email is important, you MUST use the \`forward_to_notion\` tool to send a summary to the operator's Notion dashboard. Do this BEFORE or alongside drafting a reply.
 
 ## Who Are You Replying To?
 Use the name the person gives in their email body / signature. That's their name - use it. The "from" address is where you send the reply, but the name in the email is how you greet them.
@@ -266,6 +271,20 @@ function createEmailTools(env: Env, mailboxId: string) {
 				return toolDiscardDraft(env, mailboxId, draftId);
 			},
 		}),
+
+		forward_to_notion: defineTool({
+			description:
+				"Evaluate if an email is important (e.g. requires action, high priority). If it is important, use this tool to forward a summary of the email to the operator's Notion account so they are notified immediately.",
+			parameters: z.object({
+				subject: z.string().describe("The subject of the email"),
+				sender: z.string().describe("The sender of the email"),
+				summary: z.string().describe("A concise summary of the email content"),
+				reasoning: z.string().describe("A brief explanation of why this email is considered important")
+			}),
+			execute: async ({ subject, sender, summary, reasoning }): Promise<unknown> => {
+				return toolForwardToNotion(env, { subject, sender, summary, reasoning });
+			},
+		}),
 	};
 }
 
@@ -423,7 +442,7 @@ export class EmailAgent extends AIChatAgent<any> {
 			console.warn("Pre-read failed, agent will use tools:", (e as Error).message);
 		}
 
-		let autoPrompt = `A new email just arrived. Draft an appropriate response using draft_reply.
+		let autoPrompt = `A new email just arrived. Evaluate if it is important and use forward_to_notion if it is. Then, draft an appropriate response using draft_reply.
 
 Email details:
 - Mailbox: ${emailData.mailboxId}

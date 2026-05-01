@@ -529,3 +529,70 @@ export async function toolSendEmail(
 
 	return { status: "sent", messageId, message: `Email sent to ${params.to}` };
 }
+
+// ── forward_to_notion ──────────────────────────────────────────────
+
+export async function toolForwardToNotion(
+	env: Env,
+	params: {
+		subject: string;
+		sender: string;
+		summary: string;
+		reasoning: string;
+	},
+) {
+	const token = env.NOTION_TOKEN;
+	if (!token) return { error: "NOTION_TOKEN is not configured in environment variables." };
+	const dbId = "353d33df1d5880159492f219933f1ea0";
+
+	try {
+		const response = await fetch("https://api.notion.com/v1/pages", {
+			method: "POST",
+			headers: {
+				"Authorization": `Bearer ${token}`,
+				"Notion-Version": "2022-06-28",
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({
+				parent: { database_id: dbId },
+				properties: {
+					Name: {
+						title: [
+							{ text: { content: params.subject } }
+						]
+					}
+				},
+				children: [
+					{
+						object: "block",
+						heading_2: { rich_text: [{ text: { content: "Email Details" } }] }
+					},
+					{
+						object: "block",
+						paragraph: { rich_text: [{ text: { content: `From: ${params.sender}` } }] }
+					},
+					{
+						object: "block",
+						paragraph: { rich_text: [{ text: { content: `Summary: ${params.summary}` } }] }
+					},
+					{
+						object: "block",
+						paragraph: { rich_text: [{ text: { content: `Why it's important: ${params.reasoning}` } }] }
+					}
+				]
+			})
+		});
+
+		if (!response.ok) {
+			const errorText = await response.text();
+			console.error("Notion API error:", errorText);
+			return { error: `Notion API returned ${response.status}: ${errorText}` };
+		}
+
+		const data = await response.json();
+		return { status: "forwarded", url: (data as any).url, message: "Successfully forwarded important email to Notion." };
+	} catch (e) {
+		console.error("Failed to fetch from Notion:", (e as Error).message);
+		return { error: `Network error when contacting Notion: ${(e as Error).message}` };
+	}
+}
