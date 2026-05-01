@@ -14,7 +14,9 @@
 		// TEAM_DOMAIN may be the base Access URL or the full /cdn-cgi/access/certs URL.
 		// The worker now fails closed outside local development if Access is not configured.
 		"DOMAINS": "vdesai.com",
-		"EMAIL_ADDRESSES": []
+		"EMAIL_ADDRESSES": [],
+		"TEAM_DOMAIN": "https://vdesai.cloudflareaccess.com",
+		"POLICY_AUD": "0af91575e0b26868bbe1282c920af433d0382878b08ca75045ef6c93807a42b6"
 	},
 	"send_email": [
 		{
