@@ -620,3 +620,62 @@ export async function toolForwardToNotion(
 		return { error: `Network error when contacting Notion: ${(e as Error).message}` };
 	}
 }
+
+// ── forward_to_telegram ──────────────────────────────────────────────
+
+export async function toolForwardToTelegram(
+	env: Env,
+	params: {
+		subject: string;
+		sender: string;
+		summary: string;
+		reasoning: string;
+		mailboxId: string;
+	},
+) {
+	const token = env.TELEGRAM_TOKEN;
+	const chatId = env.TELEGRAM_CHAT_ID;
+	
+	if (!token || !chatId) {
+		return { error: "TELEGRAM_TOKEN or TELEGRAM_CHAT_ID is not configured." };
+	}
+
+	const draftsUrl = `https://${env.DOMAINS}/mailbox/${params.mailboxId}/emails/drafts`;
+
+	const messageText = `🚨 *URGENT EMAIL ALERT* 🚨
+
+*From:* ${params.sender}
+*Subject:* ${params.subject}
+
+*Why it's important:*
+${params.reasoning}
+
+*Summary:*
+${params.summary}
+
+👉 [Click here to review & send draft](${draftsUrl})`;
+
+	try {
+		const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				chat_id: chatId,
+				text: messageText,
+				parse_mode: "Markdown",
+				disable_web_page_preview: true
+			})
+		});
+
+		if (!response.ok) {
+			const errorText = await response.text();
+			console.error("Telegram API error:", errorText);
+			return { error: `Telegram API returned ${response.status}: ${errorText}` };
+		}
+
+		return { status: "forwarded", message: "Successfully forwarded important email to Telegram." };
+	} catch (e) {
+		console.error("Failed to fetch from Telegram:", (e as Error).message);
+		return { error: `Network error when contacting Telegram: ${(e as Error).message}` };
+	}
+}

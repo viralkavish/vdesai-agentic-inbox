@@ -6,4 +6,6 @@ export interface Env extends Cloudflare.Env {
 	POLICY_AUD: string;
 	TEAM_DOMAIN: string;
 	NOTION_TOKEN?: string;
+	TELEGRAM_TOKEN?: string;
+	TELEGRAM_CHAT_ID?: string;
 }

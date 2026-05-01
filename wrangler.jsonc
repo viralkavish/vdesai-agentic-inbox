@@ -16,7 +16,8 @@
 		"DOMAINS": "vdesai.com",
 		"EMAIL_ADDRESSES": [],
 		"TEAM_DOMAIN": "https://vdesai.cloudflareaccess.com",
-		"POLICY_AUD": "0af91575e0b26868bbe1282c920af433d0382878b08ca75045ef6c93807a42b6"
+		"POLICY_AUD": "0af91575e0b26868bbe1282c920af433d0382878b08ca75045ef6c93807a42b6",
+		"TELEGRAM_CHAT_ID": "793493901"
 	},
 	"send_email": [
 		{

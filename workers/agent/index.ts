@@ -29,6 +29,7 @@ import {
 	toolMoveEmail,
 	toolDiscardDraft,
 	toolForwardToNotion,
+	toolForwardToTelegram,
 } from "../lib/tools";
 import { Folders, FOLDER_TOOL_DESCRIPTION, MOVE_FOLDER_TOOL_DESCRIPTION } from "../../shared/folders";
 import type { Env } from "../types";
@@ -77,8 +78,8 @@ Classify the incoming email into exactly ONE category internally:
 - MARKETING: Newsletters, promotions, discounts, sales offers, "unsubscribe".
 - SPAM: Junk, scams, unsolicited random emails.
 
-If the email is IMPORTANT, you MUST use the \`forward_to_notion\` tool to notify Viral immediately. 
-When calling the tool:
+If the email is IMPORTANT, you MUST use both the \`forward_to_notion\` and \`forward_to_telegram\` tools to notify Viral immediately. 
+When calling these tools:
 - "reasoning" should be one short sentence explaining why it is IMPORTANT.
 - "summary" should be a 2-3 sentence clear summary of the email content and what action (if any) is needed.
 
@@ -290,6 +291,20 @@ function createEmailTools(env: Env, mailboxId: string) {
 			}),
 			execute: async ({ subject, sender, summary, reasoning }): Promise<unknown> => {
 				return toolForwardToNotion(env, { subject, sender, summary, reasoning });
+			},
+		}),
+
+		forward_to_telegram: defineTool({
+			description:
+				"Evaluate if an email is important (e.g. requires action, high priority). If it is important, use this tool to forward a summary of the email to the operator's Telegram account so they are notified immediately.",
+			parameters: z.object({
+				subject: z.string().describe("The subject of the email"),
+				sender: z.string().describe("The sender of the email"),
+				summary: z.string().describe("A concise summary of the email content"),
+				reasoning: z.string().describe("A brief explanation of why this email is considered important")
+			}),
+			execute: async ({ subject, sender, summary, reasoning }): Promise<unknown> => {
+				return toolForwardToTelegram(env, { subject, sender, summary, reasoning, mailboxId });
 			},
 		}),
 	};
@@ -538,27 +553,32 @@ Based on the email content and thread context above, draft a reply using draft_r
 
 			// Persist the conversation into the agent's chat history
 
-			let notionToolArgs = null;
+			let notificationToolArgs = null;
+			let notifiedChannels = [];
 			for (const step of result.steps) {
 				for (const tc of step.toolCalls) {
 					if (tc.toolName === "forward_to_notion") {
-						notionToolArgs = tc.args as any;
-						break;
+						notificationToolArgs = tc.args as any;
+						notifiedChannels.push("Notion");
+					}
+					if (tc.toolName === "forward_to_telegram") {
+						notificationToolArgs = tc.args as any;
+						notifiedChannels.push("Telegram");
 					}
 				}
-				if (notionToolArgs) break;
 			}
 
 			let assistantText = "";
-			if (notionToolArgs) {
-				assistantText += `✅ **Important Email Forwarded to Notion**\n- **From**: ${notionToolArgs.sender}\n- **Why**: ${notionToolArgs.reasoning}\n- **Summary**: ${notionToolArgs.summary}\n\n`;
+			if (notificationToolArgs && notifiedChannels.length > 0) {
+				const channels = Array.from(new Set(notifiedChannels)).join(" & ");
+				assistantText += `✅ **Important Email Forwarded to ${channels}**\n- **From**: ${notificationToolArgs.sender}\n- **Why**: ${notificationToolArgs.reasoning}\n- **Summary**: ${notificationToolArgs.summary}\n\n`;
 			}
 			
 			if (draftToolCalled) {
 				assistantText += `Created draft reply to ${emailData.sender}.`;
 			}
 			
-			if (!notionToolArgs && !draftToolCalled) {
+			if (!notificationToolArgs && !draftToolCalled) {
 				assistantText = result.text;
 			}
 
